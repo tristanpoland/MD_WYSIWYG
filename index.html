@@ -1045,21 +1045,91 @@ function helloWorld() {
       }
       // Execute WYSIWYG command
       function executeWysiwygCommand(command) {
-        if (document.queryCommandSupported(command)) {
-          document.execCommand(command, false, null);
-          updatePreview();
-          
-          // Highlight the active button
-          wysiwygButtons.forEach(button => {
-            if (button.getAttribute('data-command') === command) {
-              button.classList.toggle('active');
-            } else {
-              button.classList.remove('active');
-            }
-          });
-          
-          showStatus(`Executed command: ${command}`);
+        if (!wysiwygMode) return;
+        
+        // Get selection
+        const selection = window.getSelection();
+        
+        switch (command) {
+          case 'bold':
+        document.execCommand('bold', false, null);
+        break;
+          case 'italic':
+        document.execCommand('italic', false, null);
+        break;
+          case 'link':
+        const url = prompt('Enter URL:', 'https://');
+        if (url) document.execCommand('createLink', false, url);
+        break;
+          case 'heading':
+        // Create heading based on selection
+        const level = prompt('Enter heading level (1-6):', '2');
+        if (level && level >= 1 && level <= 6) {
+          const range = selection.getRangeAt(0);
+          const selectedText = range.toString();
+          const heading = document.createElement(`h${level}`);
+          heading.textContent = selectedText;
+          range.deleteContents();
+          range.insertNode(heading);
         }
+        break;
+          case 'list-ul':
+        document.execCommand('insertUnorderedList', false, null);
+        break;
+          case 'list-ol':
+        document.execCommand('insertOrderedList', false, null);
+        break;
+          case 'quote':
+        document.execCommand('formatBlock', false, 'blockquote');
+        break;
+          case 'code':
+        if (selection.rangeCount) {
+          const range = selection.getRangeAt(0);
+          const selectedText = range.toString();
+          const code = document.createElement('code');
+          code.textContent = selectedText;
+          range.deleteContents();
+          range.insertNode(code);
+        }
+        break;
+          case 'image':
+        const imgUrl = prompt('Enter image URL:', 'https://');
+        if (imgUrl) {
+          const alt = prompt('Enter alt text:', '');
+          document.execCommand('insertHTML', false, `<img src="${imgUrl}" alt="${alt}" />`);
+        }
+        break;
+          case 'horizontal-rule':
+        document.execCommand('insertHorizontalRule', false, null);
+        break;
+          default:
+        document.execCommand(command, false, null);
+        }
+        
+        // Highlight the active button
+        wysiwygButtons.forEach(button => {
+          const cmd = button.getAttribute('data-command');
+          if (cmd === command) {
+        button.classList.toggle('active');
+        
+        // Remove active state after a short delay for commands that don't have persistent state
+        if (['link', 'image', 'horizontal-rule'].includes(cmd)) {
+          setTimeout(() => button.classList.remove('active'), 500);
+        }
+          }
+        });
+        
+        // Update markdown content from HTML changes
+        if (window.previewObserver) {
+          const htmlContent = previewContent.innerHTML;
+          const markdownContent = htmlToMarkdown(htmlContent);
+          
+          isUpdatingFromWysiwyg = true;
+          editor.setValue(markdownContent);
+          isUpdatingFromWysiwyg = false;
+        }
+        
+        showStatus(`Applied: ${command}`);
       }
     };
   </script>
