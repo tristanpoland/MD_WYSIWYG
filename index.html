@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Markdown Editor (AMOLED Theme)</title>
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Highlight.js for syntax highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-dark.min.css">
+  <style>
+    :root {
+      --amoled-black: #000000;
+      --dark-gray: #121212;
+      --medium-gray: #1e1e1e;
+      --light-gray: #2d2d2d;
+      --highlight: #4d4d4d;
+      --text: #e0e0e0;
+      --accent: #bb86fc;
+      --accent-darker: #9d66e1;
+      --secondary-accent: #03dac6;
+      --error: #cf6679;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--amoled-black);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+    }
+    
+    .container {
+      display: flex;
+      height: 100vh;
+      width: 100%;
+    }
+    
+    .editor-container {
+      width: 50%;
+      height: 100%;
+      overflow: hidden;
+      border-right: 1px solid var(--highlight);
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .editor-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 16px;
+      background-color: var(--dark-gray);
+      border-bottom: 1px solid var(--highlight);
+    }
+    
+    .editor-header h2 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 1.2rem;
+    }
+    
+    .editor-actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    #monaco-container {
+      flex: 1;
+      overflow: hidden;
+    }
+    
+    .preview-container {
+      width: 50%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 16px;
+      background-color: var(--dark-gray);
+      border-bottom: 1px solid var(--highlight);
+    }
+    
+    .preview-header h2 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 1.2rem;
+    }
+    
+    .preview-actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .preview-content {
+      flex: 1;
+      overflow: auto;
+      padding: 16px;
+      background-color: var(--amoled-black);
+    }
+    
+    button {
+      background-color: var(--dark-gray);
+      color: var(--text);
+      border: 1px solid var(--highlight);
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    button:hover {
+      background-color: var(--medium-gray);
+    }
+    
+    button.primary {
+      background-color: var(--accent);
+      color: var(--amoled-black);
+    }
+    
+    button.primary:hover {
+      background-color: var(--accent-darker);
+    }
+    
+    /* Markdown Preview Styles */
+    .markdown-body {
+      color: var(--text);
+      line-height: 1.6;
+    }
+    
+    .markdown-body h1,
+    .markdown-body h2,
+    .markdown-body h3,
+    .markdown-body h4,
+    .markdown-body h5,
+    .markdown-body h6 {
+      margin-top: 24px;
+      margin-bottom: 16px;
+      font-weight: 600;
+      color: var(--secondary-accent);
+    }
+    
+    .markdown-body h1 {
+      font-size: 2em;
+      border-bottom: 1px solid var(--highlight);
+      padding-bottom: 0.3em;
+    }
+    
+    .markdown-body h2 {
+      font-size: 1.5em;
+      border-bottom: 1px solid var(--highlight);
+      padding-bottom: 0.3em;
+    }
+    
+    .markdown-body h3 {
+      font-size: 1.25em;
+    }
+    
+    .markdown-body h4 {
+      font-size: 1em;
+    }
+    
+    .markdown-body h5 {
+      font-size: 0.875em;
+    }
+    
+    .markdown-body h6 {
+      font-size: 0.85em;
+      color: var(--highlight);
+    }
+    
+    .markdown-body p {
+      margin-top: 0;
+      margin-bottom: 16px;
+    }
+    
+    .markdown-body a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    
+    .markdown-body a:hover {
+      text-decoration: underline;
+    }
+    
+    .markdown-body strong {
+      font-weight: 600;
+    }
+    
+    .markdown-body em {
+      font-style: italic;
+    }
+    
+    .markdown-body blockquote {
+      padding: 0 1em;
+      border-left: 0.25em solid var(--highlight);
+      margin-left: 0;
+      margin-right: 0;
+      color: var(--text);
+    }
+    
+    .markdown-body ul,
+    .markdown-body ol {
+      padding-left: 2em;
+      margin-top: 0;
+      margin-bottom: 16px;
+    }
+    
+    .markdown-body table {
+      border-collapse: collapse;
+      border-spacing: 0;
+      display: block;
+      width: 100%;
+      overflow: auto;
+      margin-top: 0;
+      margin-bottom: 16px;
+    }
+    
+    .markdown-body table th,
+    .markdown-body table td {
+      padding: 6px 13px;
+      border: 1px solid var(--highlight);
+    }
+    
+    .markdown-body table tr {
+      background-color: var(--dark-gray);
+      border-top: 1px solid var(--highlight);
+    }
+    
+    .markdown-body table tr:nth-child(2n) {
+      background-color: var(--medium-gray);
+    }
+    
+    .markdown-body table th {
+      font-weight: 600;
+    }
+    
+    .markdown-body pre {
+      padding: 16px;
+      overflow: auto;
+      font-size: 85%;
+      line-height: 1.45;
+      background-color: var(--dark-gray);
+      border-radius: 3px;
+      margin-top: 0;
+      margin-bottom: 16px;
+    }
+    
+    .markdown-body code {
+      padding: 0.2em 0.4em;
+      margin: 0;
+      font-size: 85%;
+      background-color: var(--dark-gray);
+      border-radius: 3px;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+    
+    .markdown-body pre > code {
+      padding: 0;
+      margin: 0;
+      font-size: 100%;
+      word-break: normal;
+      white-space: pre;
+      background: transparent;
+      border: 0;
+    }
+    
+    .markdown-body hr {
+      height: 0.25em;
+      padding: 0;
+      margin: 24px 0;
+      background-color: var(--highlight);
+      border: 0;
+    }
+    
+    .markdown-body img {
+      max-width: 100%;
+      box-sizing: content-box;
+    }
+    
+    /* Status indicator */
+    .status-indicator {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: var(--accent);
+      color: var(--amoled-black);
+      padding: 10px 20px;
+      border-radius: 4px;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    
+    .status-indicator.visible {
+      opacity: 1;
+    }
+    
+    /* Tooltip styles */
+    .tooltip {
+      position: relative;
+    }
+    
+    .tooltip .tooltip-text {
+      visibility: hidden;
+      width: 120px;
+      background-color: var(--dark-gray);
+      color: var(--text);
+      text-align: center;
+      border-radius: 6px;
+      padding: 5px;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      margin-left: -60px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      font-size: 0.85rem;
+      pointer-events: none;
+      border: 1px solid var(--highlight);
+    }
+    
+    .tooltip:hover .tooltip-text {
+      visibility: visible;
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="editor-container">
+      <div class="editor-header">
+        <h2><i class="fas fa-code"></i> Markdown</h2>
+        <div class="editor-actions">
+          <button id="format-markdown" class="tooltip">
+            <i class="fas fa-align-left"></i>
+            <span class="tooltip-text">Format Markdown</span>
+          </button>
+          <button id="save-markdown" class="primary tooltip">
+            <i class="fas fa-save"></i>
+            <span class="tooltip-text">Save to URL</span>
+          </button>
+        </div>
+      </div>
+      <div id="monaco-container"></div>
+    </div>
+    
+    <div class="preview-container">
+      <div class="preview-header">
+        <h2><i class="fas fa-eye"></i> Preview</h2>
+        <div class="preview-actions">
+          <button id="export-html" class="tooltip">
+            <i class="fas fa-file-code"></i>
+            <span class="tooltip-text">Export HTML</span>
+          </button>
+          <button id="print-markdown" class="tooltip">
+            <i class="fas fa-print"></i>
+            <span class="tooltip-text">Print</span>
+          </button>
+        </div>
+      </div>
+      <div id="preview-content" class="preview-content markdown-body">
+        <div class="loading-message">Loading preview...</div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Status Indicator -->
+  <div class="status-indicator" id="status-indicator">
+    <i class="fas fa-check-circle"></i> <span id="status-text">Status</span>
+  </div>
+  
+  <!-- Load libraries separately -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+  
+  <!-- Monaco loader script -->
+  <script>
+    // Wait for all libraries to load before initializing
+    window.onload = function() {
+      // Default markdown content
+      const defaultMarkdown = `# Welcome to the Markdown Editor
+
+This is a Markdown editor with Monaco on the left and a preview on the right.
+
+## Features
+
+- **Real-time preview** as you type
+- Format markdown with a single click
+- Save to URL for sharing
+- Export as HTML
+- Print your document
+
+## Formatting Examples
+
+### Text Formatting
+
+*Italic text* and **bold text** are supported.
+
+### Lists
+
+1. Ordered list item 1
+2. Ordered list item 2
+
+- Unordered list item
+- Another unordered list item
+
+### Code
+
+Inline \`code\` and code blocks:
+
+\`\`\`javascript
+function helloWorld() {
+  console.log("Hello, world!");
+}
+\`\`\`
+
+### Tables
+
+| Header 1 | Header 2 |
+| -------- | -------- |
+| Cell 1   | Cell 2   |
+| Cell 3   | Cell 4   |
+
+### Links and Images
+
+[Visit Example.com](https://example.com)
+
+![Alt text for an image](https://via.placeholder.com/150)
+`;
+
+      // Initialize editor state variables
+      let editor;
+      let monacoIsLoading = true;
+      
+      // Initialize UI elements
+      const formatMarkdownBtn = document.getElementById('format-markdown');
+      const saveMarkdownBtn = document.getElementById('save-markdown');
+      const exportHtmlBtn = document.getElementById('export-html');
+      const printMarkdownBtn = document.getElementById('print-markdown');
+      const previewContent = document.getElementById('preview-content');
+      const statusIndicator = document.getElementById('status-indicator');
+      const statusText = document.getElementById('status-text');
+      
+      // Set up marked library
+      marked.setOptions({
+        gfm: true,
+        breaks: true,
+        highlight: function(code, lang) {
+          if (hljs.getLanguage(lang)) {
+            try {
+              return hljs.highlight(code, { language: lang }).value;
+            } catch (err) {
+              console.error('Highlighting error:', err);
+            }
+          }
+          return code;
+        }
+      });
+      
+      // Load Monaco editor separately
+      loadMonacoEditor();
+      
+      // Set up button handlers
+      formatMarkdownBtn.addEventListener('click', formatMarkdown);
+      saveMarkdownBtn.addEventListener('click', saveToUrl);
+      exportHtmlBtn.addEventListener('click', exportHtml);
+      printMarkdownBtn.addEventListener('click', printMarkdown);
+      
+      // Load Monaco editor
+      function loadMonacoEditor() {
+        // Load Monaco
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.js';
+        script.onload = () => {
+          // Configure Monaco loader
+          require.config({
+            paths: {
+              vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs'
+            }
+          });
+          
+          // Load editor
+          require(['vs/editor/editor.main'], function() {
+            initializeMonaco();
+          });
+        };
+        document.head.appendChild(script);
+      }
+      
+      // Initialize Monaco editor
+      function initializeMonaco() {
+        // Define AMOLED theme
+        monaco.editor.defineTheme('amoled-theme', {
+          base: 'vs-dark',
+          inherit: true,
+          rules: [
+            { token: 'emphasis', fontStyle: 'italic' },
+            { token: 'strong', fontStyle: 'bold' },
+            { token: 'keyword', foreground: 'ba68c8' },
+            { token: 'keyword.md', foreground: 'ba68c8' },
+            { token: 'emphasis.md', fontStyle: 'italic', foreground: 'e0e0e0' },
+            { token: 'strong.md', fontStyle: 'bold', foreground: 'e0e0e0' },
+            { token: 'heading.md', foreground: '03dac6', fontStyle: 'bold' },
+            { token: 'string.md', foreground: 'a5d6a7' },
+            { token: 'comment.md', foreground: '64b5f6' }
+          ],
+          colors: {
+            'editor.background': '#000000',
+            'editor.foreground': '#e0e0e0',
+            'editorCursor.foreground': '#bb86fc',
+            'editor.lineHighlightBackground': '#121212',
+            'editorLineNumber.foreground': '#4d4d4d',
+            'editor.selectionBackground': '#2d2d2d',
+            'editor.inactiveSelectionBackground': '#1e1e1e',
+            'editorSuggestWidget.background': '#121212',
+            'editorSuggestWidget.border': '#2d2d2d',
+            'editorSuggestWidget.foreground': '#e0e0e0',
+            'editorSuggestWidget.selectedBackground': '#2d2d2d',
+            'editorSuggestWidget.highlightForeground': '#bb86fc',
+            'editorWidget.background': '#121212',
+            'editorWidget.border': '#2d2d2d'
+          }
+        });
+        
+        // Create Monaco editor with markdown support
+        editor = monaco.editor.create(document.getElementById('monaco-container'), {
+          value: getInitialContent(),
+          language: 'markdown',
+          theme: 'amoled-theme',
+          automaticLayout: true,
+          minimap: {
+            enabled: false
+          },
+          wordWrap: 'on',
+          scrollBeyondLastLine: false,
+          lineNumbers: 'on',
+          renderLineHighlight: 'all',
+          tabSize: 2
+        });
+        
+        // Set up editor change event to update preview
+        editor.onDidChangeModelContent(() => {
+          updatePreview();
+        });
+        
+        // Mark Monaco as loaded
+        monacoIsLoading = false;
+        
+        // Initialize preview
+        updatePreview();
+        
+        showStatus('Editor ready');
+      }
+      
+      // Get initial content from URL or default
+      function getInitialContent() {
+        if (window.location.hash) {
+          try {
+            const encoded = window.location.hash.substring(1);
+            return decodeURIComponent(encoded);
+          } catch (e) {
+            console.error('Error loading from URL:', e);
+          }
+        }
+        return defaultMarkdown;
+      }
+      
+      // Update the preview pane
+      function updatePreview() {
+        if (monacoIsLoading || !editor) {
+          return;
+        }
+        
+        try {
+          const markdownContent = editor.getValue();
+          
+          // Use marked with proper escaping
+          const htmlContent = marked.parse(markdownContent);
+          
+          // Extra safe sanitization with DOMPurify
+          const sanitizedHtml = DOMPurify.sanitize(htmlContent, {
+            FORBID_TAGS: ['style', 'script'],
+            FORBID_ATTR: ['style', 'onerror', 'onload'],
+            FORCE_BODY: true,
+            ADD_ATTR: ['target']
+          });
+          
+          // Update preview content
+          previewContent.innerHTML = sanitizedHtml;
+          
+          // Apply syntax highlighting, but skip if any errors
+          try {
+            document.querySelectorAll('pre code').forEach((block) => {
+              // Clean the content first
+              const cleanedContent = block.textContent;
+              block.textContent = cleanedContent; // Ensure it's just text before highlighting
+              hljs.highlightElement(block);
+            });
+          } catch (hlError) {
+            console.warn('Highlighting error:', hlError);
+          }
+        } catch (error) {
+          console.error('Preview update error:', error);
+          previewContent.innerHTML = `<div style="color: var(--error);">Preview error: ${error.message}</div>`;
+        }
+      }
+      
+      // Format markdown
+      function formatMarkdown() {
+        if (monacoIsLoading || !editor) {
+          return;
+        }
+        
+        const content = editor.getValue();
+        const lines = content.split('\n');
+        let formattedLines = [];
+        let inCodeBlock = false;
+        let inList = false;
+        
+        for (let i = 0; i < lines.length; i++) {
+          let line = lines[i];
+          
+          // Preserve code blocks
+          if (line.trim().startsWith('```')) {
+            inCodeBlock = !inCodeBlock;
+            formattedLines.push(line);
+            continue;
+          }
+          
+          if (inCodeBlock) {
+            formattedLines.push(line);
+            continue;
+          }
+          
+          // Format headings
+          if (line.trim().startsWith('#')) {
+            const match = line.match(/^(#+)\s*(.*)/);
+            if (match) {
+              const level = match[1];
+              const text = match[2];
+              formattedLines.push(`${level} ${text}`);
+              // Add newline after headings if not at end of file
+              if (i < lines.length - 1 && lines[i + 1].trim() !== '') {
+                formattedLines.push('');
+              }
+              continue;
+            }
+          }
+          
+          // Format lists
+          if (line.trim().match(/^[-*+]\s/) || line.trim().match(/^\d+\.\s/)) {
+            inList = true;
+            formattedLines.push(line);
+            // If next line is not a list item, add a newline
+            if (i < lines.length - 1 && 
+                !lines[i + 1].trim().match(/^[-*+]\s/) && 
+                !lines[i + 1].trim().match(/^\d+\.\s/) && 
+                lines[i + 1].trim() !== '') {
+              inList = false;
+              formattedLines.push('');
+            }
+            continue;
+          }
+          
+          // Add newline between paragraphs
+          if (line.trim() === '') {
+            // Skip multiple empty lines
+            if (i > 0 && formattedLines[formattedLines.length - 1] === '') {
+              continue;
+            }
+            formattedLines.push('');
+          } else {
+            // Regular text line
+            formattedLines.push(line);
+            
+            // Add newline if end of paragraph detected
+            if (i < lines.length - 1 && lines[i + 1].trim() === '') {
+              // Skip adding newline if already at end of paragraph
+              if (i > 0 && formattedLines[formattedLines.length - 2] !== '') {
+                formattedLines.push('');
+              }
+            }
+          }
+        }
+        
+        editor.setValue(formattedLines.join('\n'));
+        showStatus('Markdown formatted');
+      }
+      
+      // Save markdown to URL
+      function saveToUrl() {
+        if (monacoIsLoading || !editor) {
+          return;
+        }
+        
+        const markdownContent = editor.getValue();
+        const encoded = encodeURIComponent(markdownContent);
+        window.location.hash = encoded;
+        showStatus('Saved to URL');
+      }
+      
+      // Export as HTML
+      function exportHtml() {
+        if (monacoIsLoading || !editor) {
+          return;
+        }
+        
+        const markdownContent = editor.getValue();
+        const htmlContent = marked.parse(markdownContent);
+        
+        // Create a full HTML document
+        const fullHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exported Markdown</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 16px;
+      border-radius: 4px;
+      overflow: auto;
+    }
+    code {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      background-color: #f5f5f5;
+      padding: 0.2em 0.4em;
+      border-radius: 3px;
+    }
+    pre code {
+      background-color: transparent;
+      padding: 0;
+    }
+    blockquote {
+      border-left: 4px solid #ddd;
+      padding-left: 16px;
+      margin-left: 0;
+      color: #666;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    table th, table td {
+      border: 1px solid #ddd;
+      padding: 8px;
+    }
+    table tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+    img {
+      max-width: 100%;
+    }
+  </style>
+</head>
+<body>
+  ${htmlContent}
+</body>
+</html>`;
+        
+        // Create a Blob with the HTML content
+        const blob = new Blob([fullHtml], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        
+        // Create a temporary link to download the HTML file
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'exported-markdown.html';
+        document.body.appendChild(a);
+        a.click();
+        
+        // Clean up
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 100);
+        
+        showStatus('HTML exported');
+      }
+      
+      // Print markdown
+      function printMarkdown() {
+        if (monacoIsLoading || !editor) {
+          return;
+        }
+        
+        const markdownContent = editor.getValue();
+        const htmlContent = marked.parse(markdownContent);
+        
+        // Create a new window for printing
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Print Markdown</title>
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+                line-height: 1.6;
+                color: #333;
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 20px;
+              }
+              pre {
+                background-color: #f5f5f5;
+                padding: 16px;
+                border-radius: 4px;
+                overflow: auto;
+              }
+              code {
+                font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+                background-color: #f5f5f5;
+                padding: 0.2em 0.4em;
+                border-radius: 3px;
+              }
+              pre code {
+                background-color: transparent;
+                padding: 0;
+              }
+              blockquote {
+                border-left: 4px solid #ddd;
+                padding-left: 16px;
+                margin-left: 0;
+                color: #666;
+              }
+              table {
+                border-collapse: collapse;
+                width: 100%;
+              }
+              table th, table td {
+                border: 1px solid #ddd;
+                padding: 8px;
+              }
+              table tr:nth-child(even) {
+                background-color: #f9f9f9;
+              }
+              img {
+                max-width: 100%;
+              }
+              @media print {
+                body {
+                  font-size: 12pt;
+                }
+                pre, code {
+                  font-size: 10pt;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            ${htmlContent}
+          </body>
+          </html>
+        `);
+        
+        // Wait for content to load before printing
+        printWindow.document.close();
+        printWindow.onload = function() {
+          printWindow.print();
+          printWindow.close();
+        };
+      }
+      
+      // Show status message
+      function showStatus(message) {
+        statusText.textContent = message;
+        statusIndicator.classList.add('visible');
+        
+        setTimeout(() => {
+          statusIndicator.classList.remove('visible');
+        }, 2000);
+      }
+    };
+  </script>
+</body>
+</html>
