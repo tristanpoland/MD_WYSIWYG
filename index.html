@@ -142,6 +142,7 @@
     .markdown-body {
       color: var(--text);
       line-height: 1.6;
+      outline: none; /* Remove outline when contenteditable */
     }
     
     .markdown-body h1,
@@ -294,6 +295,37 @@
       box-sizing: content-box;
     }
     
+    /* Wysiwyg toolbar */
+    .wysiwyg-toolbar {
+      display: flex;
+      gap: 8px;
+      padding: 8px;
+      background-color: var(--dark-gray);
+      border-bottom: 1px solid var(--highlight);
+    }
+    
+    .wysiwyg-button {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--medium-gray);
+      color: var(--text);
+      border: 1px solid var(--highlight);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    
+    .wysiwyg-button:hover {
+      background-color: var(--light-gray);
+    }
+    
+    .wysiwyg-button.active {
+      background-color: var(--accent);
+      color: var(--amoled-black);
+    }
+    
     /* Status indicator */
     .status-indicator {
       position: fixed;
@@ -345,6 +377,29 @@
       visibility: visible;
       opacity: 1;
     }
+    
+    /* Added styles for making preview editable */
+    #preview-content[contenteditable="true"] {
+      cursor: text;
+    }
+    
+    #preview-content[contenteditable="true"]:focus {
+      outline: 1px solid var(--accent);
+    }
+    
+    /* Highlight current element being edited */
+    #preview-content[contenteditable="true"] *:hover {
+      outline: 1px dashed var(--highlight);
+    }
+    
+    #preview-content[contenteditable="true"] *:focus {
+      outline: 2px solid var(--accent);
+    }
+    
+    /* Keep code blocks appearance */
+    #preview-content[contenteditable="true"] pre {
+      white-space: pre-wrap;
+    }
   </style>
 </head>
 <body>
@@ -368,8 +423,12 @@
     
     <div class="preview-container">
       <div class="preview-header">
-        <h2><i class="fas fa-eye"></i> Preview</h2>
+        <h2><i class="fas fa-eye"></i> WYSIWYG Preview</h2>
         <div class="preview-actions">
+          <button id="toggle-wysiwyg" class="tooltip">
+            <i class="fas fa-edit"></i>
+            <span class="tooltip-text">Toggle Edit Mode</span>
+          </button>
           <button id="export-html" class="tooltip">
             <i class="fas fa-file-code"></i>
             <span class="tooltip-text">Export HTML</span>
@@ -380,6 +439,51 @@
           </button>
         </div>
       </div>
+      
+      <!-- WYSIWYG Toolbar (Initially Hidden) -->
+      <div class="wysiwyg-toolbar" id="wysiwyg-toolbar" style="display: none;">
+        <button class="wysiwyg-button tooltip" data-command="bold">
+          <i class="fas fa-bold"></i>
+          <span class="tooltip-text">Bold</span>
+        </button>
+        <button class="wysiwyg-button tooltip" data-command="italic">
+          <i class="fas fa-italic"></i>
+          <span class="tooltip-text">Italic</span>
+        </button>
+        <button class="wysiwyg-button tooltip" data-command="heading">
+          <i class="fas fa-heading"></i>
+          <span class="tooltip-text">Heading</span>
+        </button>
+        <button class="wysiwyg-button tooltip" data-command="link">
+          <i class="fas fa-link"></i>
+          <span class="tooltip-text">Link</span>
+        </button>
+        <button class="wysiwyg-button tooltip" data-command="list-ul">
+          <i class="fas fa-list-ul"></i>
+          <span class="tooltip-text">Bullet List</span>
+        </button>
+        <button class="wysiwyg-button tooltip" data-command="list-ol">
+          <i class="fas fa-list-ol"></i>
+          <span class="tooltip-text">Numbered List</span>
+        </button>
+        <button class="wysiwyg-button tooltip" data-command="quote">
+          <i class="fas fa-quote-left"></i>
+          <span class="tooltip-text">Quote</span>
+        </button>
+        <button class="wysiwyg-button tooltip" data-command="code">
+          <i class="fas fa-code"></i>
+          <span class="tooltip-text">Code</span>
+        </button>
+        <button class="wysiwyg-button tooltip" data-command="image">
+          <i class="fas fa-image"></i>
+          <span class="tooltip-text">Image</span>
+        </button>
+        <button class="wysiwyg-button tooltip" data-command="horizontal-rule">
+          <i class="fas fa-minus"></i>
+          <span class="tooltip-text">Horizontal Rule</span>
+        </button>
+      </div>
+      
       <div id="preview-content" class="preview-content markdown-body">
         <div class="loading-message">Loading preview...</div>
       </div>
@@ -403,11 +507,12 @@
       // Default markdown content
       const defaultMarkdown = `# Welcome to the Markdown Editor
 
-This is a Markdown editor with Monaco on the left and a preview on the right.
+This is a Markdown editor with Monaco on the left and a WYSIWYG preview on the right.
 
 ## Features
 
 - **Real-time preview** as you type
+- **WYSIWYG editing** in the preview pane
 - Format markdown with a single click
 - Save to URL for sharing
 - Export as HTML
@@ -454,15 +559,23 @@ function helloWorld() {
       // Initialize editor state variables
       let editor;
       let monacoIsLoading = true;
+      let wysiwygMode = false;
+      let isUpdatingFromWysiwyg = false;
+      let isUpdatingFromMonaco = false;
       
       // Initialize UI elements
       const formatMarkdownBtn = document.getElementById('format-markdown');
       const saveMarkdownBtn = document.getElementById('save-markdown');
       const exportHtmlBtn = document.getElementById('export-html');
       const printMarkdownBtn = document.getElementById('print-markdown');
+      const toggleWysiwygBtn = document.getElementById('toggle-wysiwyg');
       const previewContent = document.getElementById('preview-content');
       const statusIndicator = document.getElementById('status-indicator');
       const statusText = document.getElementById('status-text');
+      const wysiwygToolbar = document.getElementById('wysiwyg-toolbar');
+      
+      // Get all WYSIWYG buttons
+      const wysiwygButtons = document.querySelectorAll('.wysiwyg-button');
       
       // Set up marked library
       marked.setOptions({
@@ -488,6 +601,14 @@ function helloWorld() {
       saveMarkdownBtn.addEventListener('click', saveToUrl);
       exportHtmlBtn.addEventListener('click', exportHtml);
       printMarkdownBtn.addEventListener('click', printMarkdown);
+      toggleWysiwygBtn.addEventListener('click', toggleWysiwygMode);
+      
+      // Set up WYSIWYG toolbar buttons
+      wysiwygButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          executeWysiwygCommand(button.getAttribute('data-command'));
+        });
+      });
       
       // Load Monaco editor
       function loadMonacoEditor() {
@@ -563,7 +684,11 @@ function helloWorld() {
         
         // Set up editor change event to update preview
         editor.onDidChangeModelContent(() => {
-          updatePreview();
+          if (!isUpdatingFromWysiwyg) {
+            isUpdatingFromMonaco = true;
+            updatePreview();
+            isUpdatingFromMonaco = false;
+          }
         });
         
         // Mark Monaco as loaded
@@ -608,8 +733,11 @@ function helloWorld() {
             ADD_ATTR: ['target']
           });
           
-          // Update preview content
-          previewContent.innerHTML = sanitizedHtml;
+          // Only update preview if not currently editing in WYSIWYG mode
+          if (!isUpdatingFromWysiwyg) {
+            // Update preview content
+            previewContent.innerHTML = sanitizedHtml;
+          }
           
           // Apply syntax highlighting, but skip if any errors
           try {
@@ -628,281 +756,310 @@ function helloWorld() {
         }
       }
       
-      // Format markdown
+      // Toggle WYSIWYG mode
+      function toggleWysiwygMode() {
+        wysiwygMode = !wysiwygMode;
+        
+        if (wysiwygMode) {
+          // Enable WYSIWYG mode
+          previewContent.setAttribute('contenteditable', 'true');
+          wysiwygToolbar.style.display = 'flex';
+          toggleWysiwygBtn.innerHTML = '<i class="fas fa-code"></i><span class="tooltip-text">View Mode</span>';
+          showStatus('WYSIWYG mode enabled');
+          
+          // Set up MutationObserver to track changes in the preview
+          setupMutationObserver();
+        } else {
+          // Disable WYSIWYG mode
+          previewContent.setAttribute('contenteditable', 'false');
+          wysiwygToolbar.style.display = 'none';
+          toggleWysiwygBtn.innerHTML = '<i class="fas fa-edit"></i><span class="tooltip-text">Edit Mode</span>';
+          showStatus('WYSIWYG mode disabled');
+          
+          // Disconnect the MutationObserver
+          if (window.previewObserver) {
+            window.previewObserver.disconnect();
+          }
+        }
+      }
+      
+      // Setup MutationObserver to track changes in the preview
+      function setupMutationObserver() {
+        // Create MutationObserver instance
+        window.previewObserver = new MutationObserver((mutations) => {
+          if (!isUpdatingFromMonaco) {
+            isUpdatingFromWysiwyg = true;
+            // Convert HTML to Markdown and update editor
+            const htmlContent = previewContent.innerHTML;
+            const markdownContent = htmlToMarkdown(htmlContent);
+            editor.setValue(markdownContent);
+            isUpdatingFromWysiwyg = false;
+          }
+        });
+        
+        // Options for the observer
+        const config = {
+          attributes: true,
+          childList: true,
+          characterData: true,
+          subtree: true
+        };
+        
+        // Start observing
+        window.previewObserver.observe(previewContent, config);
+      }
+      
+      // Convert HTML to Markdown
+      function htmlToMarkdown(html) {
+        // Create a temporary container
+        const tempContainer = document.createElement('div');
+        tempContainer.innerHTML = html;
+        
+        let markdown = '';
+        
+        // Process node by node
+        function processNode(node, level = 0, listType = null) {
+          if (!node) return '';
+          
+          let result = '';
+          
+          switch (node.nodeType) {
+            case Node.ELEMENT_NODE:
+              switch (node.nodeName.toLowerCase()) {
+                case 'h1':
+                  result += '# ' + getTextContent(node) + '\n\n';
+                  break;
+                case 'h2':
+                  result += '## ' + getTextContent(node) + '\n\n';
+                  break;
+                case 'h3':
+                  result += '### ' + getTextContent(node) + '\n\n';
+                  break;
+                case 'h4':
+                  result += '#### ' + getTextContent(node) + '\n\n';
+                  break;
+                case 'h5':
+                  result += '##### ' + getTextContent(node) + '\n\n';
+                  break;
+                case 'h6':
+                  result += '###### ' + getTextContent(node) + '\n\n';
+                  break;
+                case 'p':
+                  // Process the content of the paragraph
+                  let paragraphContent = '';
+                  for (const child of node.childNodes) {
+                    paragraphContent += processNode(child, level);
+                  }
+                  result += paragraphContent + '\n\n';
+                  break;
+                case 'strong':
+                case 'b':
+                  result += '**' + getTextContent(node) + '**';
+                  break;
+                case 'em':
+                case 'i':
+                  result += '*' + getTextContent(node) + '*';
+                  break;
+                case 'a':
+                  result += '[' + getTextContent(node) + '](' + (node.getAttribute('href') || '') + ')';
+                  break;
+                case 'code':
+                  if (node.parentNode && node.parentNode.nodeName.toLowerCase() === 'pre') {
+                    // Skip, handled by pre tag
+                  } else {
+                    result += '`' + getTextContent(node) + '`';
+                  }
+                  break;
+                case 'pre':
+                  const codeNode = node.querySelector('code');
+                  const language = codeNode ? codeNode.className.replace('language-', '') : '';
+                  result += '```' + language + '\n' + getTextContent(codeNode || node) + '\n```\n\n';
+                  break;
+                case 'blockquote':
+                  // Process blockquote content
+                  let blockquoteContent = '';
+                  for (const child of node.childNodes) {
+                    blockquoteContent += processNode(child, level);
+                  }
+                  // Split by lines and add '> ' to each line
+                  result += blockquoteContent.split('\n').map(line => '> ' + line).join('\n') + '\n\n';
+                  break;
+                case 'ul':
+                  // Process unordered list
+                  for (const listItem of node.children) {
+                    if (listItem.nodeName.toLowerCase() === 'li') {
+                      result += '- ' + getTextContent(listItem) + '\n';
+                    }
+                  }
+                  result += '\n';
+                  break;
+                case 'ol':
+                  // Process ordered list
+                  let itemNumber = 1;
+                  for (const listItem of node.children) {
+                    if (listItem.nodeName.toLowerCase() === 'li') {
+                      result += itemNumber + '. ' + getTextContent(listItem) + '\n';
+                      itemNumber++;
+                    }
+                  }
+                  result += '\n';
+                  break;
+                case 'hr':
+                  result += '---\n\n';
+                  break;
+                case 'img':
+                  result += '![' + (node.getAttribute('alt') || '') + '](' + (node.getAttribute('src') || '') + ')';
+                  break;
+                case 'table':
+                  result += processTable(node) + '\n\n';
+                  break;
+                default:
+                  // For other elements, process children
+                  for (const child of node.childNodes) {
+                    result += processNode(child, level);
+                  }
+              }
+              break;
+            case Node.TEXT_NODE:
+              result += node.textContent;
+              break;
+          }
+          
+          return result;
+        }
+        
+        // Helper to get clean text content
+        function getTextContent(node) {
+          return node ? node.textContent.trim() : '';
+        }
+        
+        // Helper to process tables
+        function processTable(tableNode) {
+          let result = '';
+          
+          // Process header row
+          const headerRow = tableNode.querySelector('thead tr');
+          if (headerRow) {
+            const headers = Array.from(headerRow.querySelectorAll('th')).map(th => th.textContent.trim());
+            if (headers.length > 0) {
+              result += '| ' + headers.join(' | ') + ' |\n';
+              result += '| ' + headers.map(() => '--------').join(' | ') + ' |\n';
+            }
+          }
+          
+          // Process body rows
+          const bodyRows = tableNode.querySelectorAll('tbody tr');
+          bodyRows.forEach(row => {
+            const cells = Array.from(row.querySelectorAll('td')).map(td => td.textContent.trim());
+            if (cells.length > 0) {
+              result += '| ' + cells.join(' | ') + ' |\n';
+            }
+          });
+          
+          return result;
+        }
+        
+        // Process the entire container
+        for (const childNode of tempContainer.childNodes) {
+          markdown += processNode(childNode);
+        }
+        
+        return markdown;
+      }
+      // Format the markdown content
       function formatMarkdown() {
-        if (monacoIsLoading || !editor) {
-          return;
+        if (editor) {
+          const markdownContent = editor.getValue();
+          const formattedContent = marked.parse(markdownContent);
+          editor.setValue(formattedContent);
+          updatePreview();
+          showStatus('Markdown formatted');
         }
-        
-        const content = editor.getValue();
-        const lines = content.split('\n');
-        let formattedLines = [];
-        let inCodeBlock = false;
-        let inList = false;
-        
-        for (let i = 0; i < lines.length; i++) {
-          let line = lines[i];
-          
-          // Preserve code blocks
-          if (line.trim().startsWith('```')) {
-            inCodeBlock = !inCodeBlock;
-            formattedLines.push(line);
-            continue;
-          }
-          
-          if (inCodeBlock) {
-            formattedLines.push(line);
-            continue;
-          }
-          
-          // Format headings
-          if (line.trim().startsWith('#')) {
-            const match = line.match(/^(#+)\s*(.*)/);
-            if (match) {
-              const level = match[1];
-              const text = match[2];
-              formattedLines.push(`${level} ${text}`);
-              // Add newline after headings if not at end of file
-              if (i < lines.length - 1 && lines[i + 1].trim() !== '') {
-                formattedLines.push('');
-              }
-              continue;
-            }
-          }
-          
-          // Format lists
-          if (line.trim().match(/^[-*+]\s/) || line.trim().match(/^\d+\.\s/)) {
-            inList = true;
-            formattedLines.push(line);
-            // If next line is not a list item, add a newline
-            if (i < lines.length - 1 && 
-                !lines[i + 1].trim().match(/^[-*+]\s/) && 
-                !lines[i + 1].trim().match(/^\d+\.\s/) && 
-                lines[i + 1].trim() !== '') {
-              inList = false;
-              formattedLines.push('');
-            }
-            continue;
-          }
-          
-          // Add newline between paragraphs
-          if (line.trim() === '') {
-            // Skip multiple empty lines
-            if (i > 0 && formattedLines[formattedLines.length - 1] === '') {
-              continue;
-            }
-            formattedLines.push('');
-          } else {
-            // Regular text line
-            formattedLines.push(line);
-            
-            // Add newline if end of paragraph detected
-            if (i < lines.length - 1 && lines[i + 1].trim() === '') {
-              // Skip adding newline if already at end of paragraph
-              if (i > 0 && formattedLines[formattedLines.length - 2] !== '') {
-                formattedLines.push('');
-              }
-            }
-          }
-        }
-        
-        editor.setValue(formattedLines.join('\n'));
-        showStatus('Markdown formatted');
       }
-      
-      // Save markdown to URL
+      // Save the current markdown to URL
       function saveToUrl() {
-        if (monacoIsLoading || !editor) {
-          return;
+        if (editor) {
+          const markdownContent = editor.getValue();
+          const encodedContent = encodeURIComponent(markdownContent);
+          const newUrl = window.location.origin + window.location.pathname + '#' + encodedContent;
+          window.history.pushState({ path: newUrl }, '', newUrl);
+          showStatus('Markdown saved to URL');
         }
-        
-        const markdownContent = editor.getValue();
-        const encoded = encodeURIComponent(markdownContent);
-        window.location.hash = encoded;
-        showStatus('Saved to URL');
       }
-      
-      // Export as HTML
+      // Export the current markdown as HTML
       function exportHtml() {
-        if (monacoIsLoading || !editor) {
-          return;
-        }
-        
-        const markdownContent = editor.getValue();
-        const htmlContent = marked.parse(markdownContent);
-        
-        // Create a full HTML document
-        const fullHtml = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Exported Markdown</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-      line-height: 1.6;
-      color: #333;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-    pre {
-      background-color: #f5f5f5;
-      padding: 16px;
-      border-radius: 4px;
-      overflow: auto;
-    }
-    code {
-      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-      background-color: #f5f5f5;
-      padding: 0.2em 0.4em;
-      border-radius: 3px;
-    }
-    pre code {
-      background-color: transparent;
-      padding: 0;
-    }
-    blockquote {
-      border-left: 4px solid #ddd;
-      padding-left: 16px;
-      margin-left: 0;
-      color: #666;
-    }
-    table {
-      border-collapse: collapse;
-      width: 100%;
-    }
-    table th, table td {
-      border: 1px solid #ddd;
-      padding: 8px;
-    }
-    table tr:nth-child(even) {
-      background-color: #f9f9f9;
-    }
-    img {
-      max-width: 100%;
-    }
-  </style>
-</head>
-<body>
-  ${htmlContent}
-</body>
-</html>`;
-        
-        // Create a Blob with the HTML content
-        const blob = new Blob([fullHtml], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        
-        // Create a temporary link to download the HTML file
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'exported-markdown.html';
-        document.body.appendChild(a);
-        a.click();
-        
-        // Clean up
-        setTimeout(() => {
-          document.body.removeChild(a);
+        if (editor) {
+          const markdownContent = editor.getValue();
+          const htmlContent = marked.parse(markdownContent);
+          const blob = new Blob([htmlContent], { type: 'text/html' });
+          const url = URL.createObjectURL(blob);
+          
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'export.html';
+          a.click();
+          
           URL.revokeObjectURL(url);
-        }, 100);
-        
-        showStatus('HTML exported');
-      }
-      
-      // Print markdown
-      function printMarkdown() {
-        if (monacoIsLoading || !editor) {
-          return;
+          showStatus('HTML exported');
         }
-        
-        const markdownContent = editor.getValue();
-        const htmlContent = marked.parse(markdownContent);
-        
-        // Create a new window for printing
-        const printWindow = window.open('', '_blank');
-        printWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>Print Markdown</title>
-            <style>
-              body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-                line-height: 1.6;
-                color: #333;
-                max-width: 800px;
-                margin: 0 auto;
-                padding: 20px;
-              }
-              pre {
-                background-color: #f5f5f5;
-                padding: 16px;
-                border-radius: 4px;
-                overflow: auto;
-              }
-              code {
-                font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-                background-color: #f5f5f5;
-                padding: 0.2em 0.4em;
-                border-radius: 3px;
-              }
-              pre code {
-                background-color: transparent;
-                padding: 0;
-              }
-              blockquote {
-                border-left: 4px solid #ddd;
-                padding-left: 16px;
-                margin-left: 0;
-                color: #666;
-              }
-              table {
-                border-collapse: collapse;
-                width: 100%;
-              }
-              table th, table td {
-                border: 1px solid #ddd;
-                padding: 8px;
-              }
-              table tr:nth-child(even) {
-                background-color: #f9f9f9;
-              }
-              img {
-                max-width: 100%;
-              }
-              @media print {
-                body {
-                  font-size: 12pt;
-                }
-                pre, code {
-                  font-size: 10pt;
-                }
-              }
-            </style>
-          </head>
-          <body>
-            ${htmlContent}
-          </body>
-          </html>
-        `);
-        
-        // Wait for content to load before printing
-        printWindow.document.close();
-        printWindow.onload = function() {
+      }
+      // Print the current markdown
+      function printMarkdown() {
+        if (editor) {
+          const markdownContent = editor.getValue();
+          const htmlContent = marked.parse(markdownContent);
+          
+          const printWindow = window.open('', '', 'width=800,height=600');
+          printWindow.document.write(`
+            <html>
+              <head>
+                <title>Print Markdown</title>
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-dark.min.css">
+                <style>
+                  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--amoled-black); color: var(--text); }
+                  .markdown-body { padding: 20px; }
+                </style>
+              </head>
+              <body>
+                <div class="markdown-body">${htmlContent}</div>
+              </body>
+            </html>
+          `);
+          printWindow.document.close();
+          printWindow.focus();
           printWindow.print();
           printWindow.close();
-        };
+          
+          showStatus('Markdown printed');
+        }
       }
-      
       // Show status message
       function showStatus(message) {
         statusText.textContent = message;
         statusIndicator.classList.add('visible');
         
+        // Hide status after 3 seconds
         setTimeout(() => {
           statusIndicator.classList.remove('visible');
-        }, 2000);
+        }, 3000);
+      }
+      // Execute WYSIWYG command
+      function executeWysiwygCommand(command) {
+        if (document.queryCommandSupported(command)) {
+          document.execCommand(command, false, null);
+          updatePreview();
+          
+          // Highlight the active button
+          wysiwygButtons.forEach(button => {
+            if (button.getAttribute('data-command') === command) {
+              button.classList.toggle('active');
+            } else {
+              button.classList.remove('active');
+            }
+          });
+          
+          showStatus(`Executed command: ${command}`);
+        }
       }
     };
   </script>
